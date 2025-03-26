@@ -32,15 +32,21 @@ COLOR_BLUE:     .word 0x0000FF
 COLOR_YELLOW:   .word 0xFFFF00
 COLOR_BLACK:    .word 0x000000
 
-# Grid dimensions (24 ≤ X ≤ 40, 14 ≤ Y ≤ 42)
+# Grid dimensions (24 
+ X 
+ 40, 14 
+ Y 
+ 42)
 GRID_COLS:      .word 17             # 40 - 24 + 1
 GRID_ROWS:      .word 29             # 42 - 14 + 1
 
 ##############################################################################
 # Mutable Data
 ##############################################################################
-VIRUS_DATA:     .word 0:9            # 3 viruses × (X, Y, color)
-GRID:           .word 0:493          # 17 columns × 29 rows
+VIRUS_DATA:     .word 0:9            # 3 viruses 
+ (X, Y, color)
+GRID:           .word 0:493          # 17 columns 
+ 29 rows
 
 MATCH_BUFFER:   .word 0:493        # Buffer to mark blocks for removal
 TEMP_ARRAY:     .word 0:29         # Temporary storage for gravity processing
@@ -72,8 +78,6 @@ main:
     
 game_loop:
     jal check_keyboard               # Check for 'q' to quit
-    jal clear_screen                 # Wipe previous frame
-    jal draw_bottle                  # Draw static bottle
     jal draw_grid                    # Draw viruses from GRID
     jal draw_pill                    # Draw static pill
     jal sleep_33ms                   
@@ -93,7 +97,8 @@ virus_loop:
     # Generate X (25-39)
     li $v0, 42
     li $a0, 0                        # Generator ID
-    li $a1, 15                       # 0-14 → 25-39
+    li $a1, 15                       # 0-14 
+ 25-39
     syscall
     addi $t0, $a0, 25
     sw $t0, 0($s0)                   # Store X
@@ -101,7 +106,8 @@ virus_loop:
     # Generate Y (17-41)
     li $v0, 42
     li $a0, 0
-    li $a1, 25                       # 0-24 → 17-41
+    li $a1, 25                       # 0-24 
+ 17-41
     syscall
     addi $t1, $a0, 17
     sw $t1, 4($s0)                   # Store Y
@@ -215,6 +221,59 @@ sleep_33ms:
     li $a0, 60                       # ~30 FPS
     syscall
     jr $ra
+    
+    
+# Clearing the pill:
+clear_pill:
+    addi $sp, $sp, -4
+    sw   $ra, 0($sp)
+    lw   $a2, COLOR_BLACK      # Use black to clear
+    lw   $t2, PILL_X
+    lw   $t3, PILL_Y
+    lw   $t4, PILL_ROTATION
+    
+    # Determine pill parts based on rotation
+    beq $t4, 0, clear_vertical
+    beq $t4, 1, clear_horizontal
+    beq $t4, 2, clear_vertical_flipped
+    beq $t4, 3, clear_horizontal_flipped
+
+clear_vertical:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    move $a0, $t2
+    addi $a1, $t3, 1
+    jal draw_unit
+    j end_clear_pill
+
+clear_horizontal:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    addi $a0, $t2, 1
+    jal draw_unit
+    j end_clear_pill
+
+clear_vertical_flipped:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    move $a0, $t2
+    addi $a1, $t3, -1
+    jal draw_unit
+    j end_clear_pill
+
+clear_horizontal_flipped:
+    addi $a0, $t2, -1
+    jal draw_unit
+    move $a0, $t2
+    jal draw_unit
+
+end_clear_pill:
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr   $ra
 
 # ----- Drawing the bottle -----
 draw_bottle:
@@ -469,6 +528,8 @@ check_keyboard:
 move_left:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t2, PILL_X
     addi $t3, $t2, -1         # Proposed new X
@@ -509,6 +570,8 @@ move_left_exit:
 move_right:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t2, PILL_X
     addi $t3, $t2, 1         # Proposed new X
@@ -552,6 +615,8 @@ move_right_exit:
 move_down:
     addi $sp, $sp, -20       # Allocate space for $ra, original_Y, new_Y, X, rotation
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     # Load current pill data
     lw   $t0, PILL_Y         # Original Y
@@ -600,6 +665,8 @@ move_down_exit:
 rotate:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t3, PILL_ROTATION
     addi $t3, $t3, -1        # Rotate counter-clockwise
@@ -640,9 +707,11 @@ rotate_exit:
 lock_pill:
     addi $sp, $sp, -4
     sw   $ra, 0($sp)
-    jal  save_pill_to_grid         # Save pill to GRID
-    jal  process_matches           # Process matches and apply gravity
-    jal  spawn_new_pill            # Generate new pill at top
+    jal  save_pill_to_grid
+    jal  clear_screen       # Full clear when locking
+    jal  draw_bottle        # Redraw static elements
+    jal  process_matches
+    jal  spawn_new_pill
     lw   $ra, 0($sp)
     addi $sp, $sp, 4
     jr   $ra
@@ -718,11 +787,15 @@ collision:
 # $a0 = X, $a1 = Y
 # Returns $v0 = 1 (collision) or 0 (valid)
 check_single_collision:
-    # Check outer walls (24 ≤ X ≤ 40)
+    # Check outer walls (24 
+ X 
+ 40)
     blt $a0, 25, invalid
     bgt $a0, 39, invalid
 
-    # Check Y bounds (14 ≤ Y ≤ 41)
+    # Check Y bounds (14 
+ Y 
+ 41)
     blt $a1, 14, invalid
     bgt $a1, 41, invalid
 
@@ -914,6 +987,7 @@ check_horizontal_group:
 
     # Mark all four cells in MATCH_BUFFER
     li   $t0, 0
+    
 mark_horizontal:
     add  $t1, $a0, $t0
     mul  $t2, $a1, 17
@@ -1215,7 +1289,7 @@ collect_loop:
     addi $s3, $s3, 1
     sw   $zero, 0($t4)            # Clear original position
 
-    
+
 skip_collect:
     addi $s4, $s4, -1
     bgez $s4, collect_loop
