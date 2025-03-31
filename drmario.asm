@@ -32,21 +32,15 @@ COLOR_BLUE:     .word 0x0000FF
 COLOR_YELLOW:   .word 0xFFFF00
 COLOR_BLACK:    .word 0x000000
 
-# Grid dimensions (24 
- X 
- 40, 14 
- Y 
- 42)
+# Grid dimensions (24 <= X <= 40, 14 <= Y <= 42)
 GRID_COLS:      .word 17             # 40 - 24 + 1
 GRID_ROWS:      .word 29             # 42 - 14 + 1
 
 ##############################################################################
 # Mutable Data
 ##############################################################################
-VIRUS_DATA:     .word 0:9            # 3 viruses 
- (X, Y, color)
-GRID:           .word 0:493          # 17 columns 
- 29 rows
+VIRUS_DATA:     .word 0:9            # 3 viruses x (X, Y, color)
+GRID:           .word 0:493          # 17 columns x 29 rows
 
 MATCH_BUFFER:   .word 0:493        # Buffer to mark blocks for removal
 TEMP_ARRAY:     .word 0:29         # Temporary storage for gravity processing
@@ -104,8 +98,7 @@ virus_loop:
     # Generate X (25-39)
     li $v0, 42
     li $a0, 0                        # Generator ID
-    li $a1, 15                       # 0-14 
- 25-39
+    li $a1, 15                       # 0-14 x 25-39
     syscall
     addi $t0, $a0, 25
     sw $t0, 0($s0)                   # Store X
@@ -113,8 +106,7 @@ virus_loop:
     # Generate Y (17-41)
     li $v0, 42
     li $a0, 0
-    li $a1, 25                       # 0-24 
- 17-41
+    li $a1, 25                       # 0-24 x 17-41
     syscall
     addi $t1, $a0, 17
     sw $t1, 4($s0)                   # Store Y
@@ -911,14 +903,10 @@ collision:
 # Returns $v0 = 1 (collision) or 0 (valid)
 check_single_collision:
     # Check outer walls (24 
- X 
- 40)
     blt $a0, 25, invalid
     bgt $a0, 39, invalid
 
     # Check Y bounds (14 
- Y 
- 41)
     blt $a1, 14, invalid
     bgt $a1, 41, invalid
 
