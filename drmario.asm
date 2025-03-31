@@ -52,7 +52,13 @@ PILL_LEFT_COLOR:  .word 0
 PILL_RIGHT_COLOR: .word 0
 PILL_X:           .word 32       # Initial X position
 PILL_Y:           .word 14       # Initial Y position
-PILL_ROTATION:    .word 0        # 0 = vertical, 1 = horizontal
+PILL_ROTATION:    .word 0
+
+
+# for auto gravity:
+LOCKED_COUNT:   .word 0
+DROP_INTERVAL:  .word 1000  # Initial interval: 1000 ms
+LAST_DROP_TIME: .word 0     
 
 ##############################################################################
 # Code
@@ -72,8 +78,7 @@ main:
     
 game_loop:
     jal check_keyboard               # Check for 'q' to quit
-    jal clear_screen                 # Wipe previous frame
-    jal draw_bottle                  # Draw static bottle
+    jal check_auto_move_down
     jal draw_grid                    # Draw viruses from GRID
     jal draw_pill                    # Draw static pill
     jal sleep_33ms                   
@@ -152,6 +157,97 @@ end_generate:
     addi $sp, $sp, 4
     jr $ra
 
+# ----- Auto gravity ------
+check_auto_move_down:
+    addi $sp, $sp, -16
+    sw   $ra, 0($sp)
+    sw   $t0, 4($sp)
+    sw   $t1, 8($sp)
+    sw   $t2, 12($sp)
+
+    # Get current time
+    li   $v0, 30
+    syscall
+    move $t0, $a0           # Current time in $t0
+
+    lw   $t1, LAST_DROP_TIME
+    lw   $t2, DROP_INTERVAL
+
+    # Initialize LAST_DROP_TIME if zero
+    bnez $t1, check_elapsed
+    sw   $t0, LAST_DROP_TIME
+    j    exit_auto_check
+
+check_elapsed:
+    sub  $t1, $t0, $t1      # elapsed = current - last
+    blt  $t1, $t2, exit_auto_check  # Not enough time passed
+
+    jal  auto_move_down      # Perform automatic move
+
+    # Get current time again after moving
+    li   $v0, 30
+    syscall
+    sw   $a0, LAST_DROP_TIME # Update last move time
+
+exit_auto_check:
+    lw   $ra, 0($sp)
+    lw   $t0, 4($sp)
+    lw   $t1, 8($sp)
+    lw   $t2, 12($sp)
+    addi $sp, $sp, 16
+    jr   $ra
+
+
+auto_move_down:
+    addi $sp, $sp, -20
+    sw   $ra, 0($sp)
+    
+    jal clear_pill          # Erase old pill position using current rotation
+
+    # Load pill data
+    lw   $t0, PILL_Y
+    addi $t1, $t0, 1       # Proposed new Y
+    lw   $t2, PILL_X
+    lw   $t3, PILL_ROTATION
+
+    # Save values
+    sw   $t0, 4($sp)
+    sw   $t1, 8($sp)
+    sw   $t2, 12($sp)
+    sw   $t3, 16($sp)
+
+    # Check collision at new position
+    move $a0, $t2
+    move $a1, $t1
+    move $a2, $t3
+    jal  check_collision
+
+    # Restore values
+    lw   $t0, 4($sp)
+    lw   $t1, 8($sp)
+    lw   $t2, 12($sp)
+    lw   $t3, 16($sp)
+
+    beqz $v0, auto_move_valid
+    # Collision: Lock pill
+    move $a0, $t2
+    move $a1, $t0
+    move $a2, $t3
+    jal  lock_pill
+    j    auto_move_exit
+
+auto_move_valid:
+    sw   $t1, PILL_Y       # Update Y position
+    jal  draw_bottle        # Redraw bottle to cover remnants
+    jal  draw_grid          # Redraw grid (viruses/locked pills)
+    jal  draw_pill          # Draw pill in new position
+
+auto_move_exit:
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 20
+    jr   $ra
+
+
 # ------------ Grid Drawing --------------
 draw_grid:
     addi $sp, $sp, -4
@@ -215,6 +311,62 @@ sleep_33ms:
     li $a0, 60                       # ~30 FPS
     syscall
     jr $ra
+    
+    
+# Clearing the pill:
+clear_pill:
+    addi $sp, $sp, -4
+    sw   $ra, 0($sp)
+    lw   $a2, COLOR_BLACK      # Use black to clear
+    lw   $t2, PILL_X
+    lw   $t3, PILL_Y
+    lw   $t4, PILL_ROTATION
+    
+    # Determine pill parts based on rotation
+    beq $t4, 0, clear_vertical
+    beq $t4, 1, clear_horizontal
+    beq $t4, 2, clear_vertical_flipped
+    beq $t4, 3, clear_horizontal_flipped
+
+clear_vertical:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    move $a0, $t2
+    addi $a1, $t3, 1
+    jal draw_unit
+    j end_clear_pill
+
+clear_horizontal:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    addi $a0, $t2, 1
+    jal draw_unit
+    j end_clear_pill
+
+clear_vertical_flipped:
+    move $a0, $t2
+    move $a1, $t3
+    jal draw_unit
+    move $a0, $t2
+    addi $a1, $t3, -1
+    jal draw_unit
+    j end_clear_pill
+
+clear_horizontal_flipped:
+    move $a0, $t2            # Current X
+    move $a1, $t3            # Current Y
+    jal draw_unit            # Clear main unit first
+    
+    addi $a0, $t2, -1        # Then clear left unit
+    jal draw_unit
+    j end_clear_pill
+
+end_clear_pill:
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr   $ra
 
 # ----- Drawing the bottle -----
 draw_bottle:
@@ -469,6 +621,8 @@ check_keyboard:
 move_left:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t2, PILL_X
     addi $t3, $t2, -1         # Proposed new X
@@ -509,6 +663,8 @@ move_left_exit:
 move_right:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t2, PILL_X
     addi $t3, $t2, 1         # Proposed new X
@@ -552,6 +708,8 @@ move_right_exit:
 move_down:
     addi $sp, $sp, -20       # Allocate space for $ra, original_Y, new_Y, X, rotation
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     # Load current pill data
     lw   $t0, PILL_Y         # Original Y
@@ -600,6 +758,8 @@ move_down_exit:
 rotate:
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
+    
+    jal clear_pill # clearing the pill
 
     lw   $t3, PILL_ROTATION
     addi $t3, $t3, -1        # Rotate counter-clockwise
@@ -640,9 +800,33 @@ rotate_exit:
 lock_pill:
     addi $sp, $sp, -4
     sw   $ra, 0($sp)
-    jal  save_pill_to_grid         # Save pill to GRID
-    jal  process_matches           # Process matches and apply gravity
-    jal  spawn_new_pill            # Generate new pill at top
+    jal  save_pill_to_grid
+    jal  clear_screen
+    jal  draw_bottle
+    jal  process_matches
+    jal  spawn_new_pill
+
+    # Increase locked count and adjust speed
+    lw   $t0, LOCKED_COUNT
+    addi $t0, $t0, 1
+    sw   $t0, LOCKED_COUNT
+
+    # Calculate new interval: max(500, 1000 - 50*count)
+    li   $t1, 50
+    mul  $t1, $t0, $t1
+    li   $t2, 1000
+    sub  $t2, $t2, $t1
+    li   $t3, 500
+    bge  $t2, $t3, update_interval
+    move $t2, $t3
+    
+update_interval:
+    sw   $t2, DROP_INTERVAL
+
+    # Reset LAST_DROP_TIME to zero for new pill's interval
+    la   $t4, LAST_DROP_TIME
+    sw   $zero, 0($t4)
+
     lw   $ra, 0($sp)
     addi $sp, $sp, 4
     jr   $ra
@@ -914,6 +1098,7 @@ check_horizontal_group:
 
     # Mark all four cells in MATCH_BUFFER
     li   $t0, 0
+    
 mark_horizontal:
     add  $t1, $a0, $t0
     mul  $t2, $a1, 17
@@ -1215,7 +1400,7 @@ collect_loop:
     addi $s3, $s3, 1
     sw   $zero, 0($t4)            # Clear original position
 
-    
+
 skip_collect:
     addi $s4, $s4, -1
     bgez $s4, collect_loop
