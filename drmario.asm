@@ -127,20 +127,13 @@ DROP_INTERVAL:  .word 1000  # Initial interval: 1000 ms
 LAST_DROP_TIME: .word 0     
 
 
-# soundtrack:  .asciiz "./soundtrack.wav"
-
 ##############################################################################
 # Code
 ##############################################################################
 	.text
 	.globl main
 
-main:
-    # li $a0, 0         # File descriptor (0 for Saturn audio)
-    # la $a1, soundtrack # Load address of the audio file
-    # li $v0, 4003      # Saturn-specific system call for playing sound
-    # syscall
-    
+main: 
     jal draw_mario
     jal draw_bottle
     jal generate_viruses  # Populate VIRUS_DATA and GRID
@@ -155,7 +148,8 @@ game_loop:
     jal check_auto_move_down
     jal draw_grid                    # Draw viruses from GRID
     jal draw_pill                    # Draw static pill
-    jal sleep_33ms                   
+    jal sleep_33ms  
+    
     j game_loop
 
 # -------------------- Draw Mario function ---------------------
@@ -753,6 +747,12 @@ move_left:
 
 move_left_valid:
     # No collision: Update PILL_Y to new_Y
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 65       # Frequency (lower than the block breaking sound)
+    li $a1, 50        # Duration in milliseconds (slightly longer than block sound)
+    li $a2, 2          # Waveform type: 2 for triangle wave
+    li $a3, 100        # Volume (moderate)
+    syscall
     sw   $t3, PILL_X
 
 move_left_exit:
@@ -760,7 +760,7 @@ move_left_exit:
     addi $sp, $sp, 20        # Free stack space
     j    no_key              # Return to main loop
 
-move_right:
+move_right:  
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
     
@@ -796,6 +796,12 @@ move_right:
 
 move_right_valid:
     # No collision: Update PILL_Y to new_Y
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 65       # Frequency (lower than the block breaking sound)
+    li $a1, 50        # Duration in milliseconds (slightly longer than block sound)
+    li $a2, 2          # Waveform type: 2 for triangle wave
+    li $a3, 100        # Volume (moderate)
+    syscall
     sw   $t3, PILL_X
 
 move_right_exit:
@@ -806,6 +812,7 @@ move_right_exit:
 
 
 move_down:
+    
     addi $sp, $sp, -20       # Allocate space for $ra, original_Y, new_Y, X, rotation
     sw   $ra, 0($sp)         # Save return address
     
@@ -843,10 +850,17 @@ move_down:
     move $a1, $t0            # Original Y
     move $a2, $t3            # Original rotation
     jal  lock_pill
+    
     j    move_down_exit
 
 move_down_valid:
     # No collision: Update PILL_Y to new_Y
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 65       # Frequency (lower than the block breaking sound)
+    li $a1, 50        # Duration in milliseconds (slightly longer than block sound)
+    li $a2, 2          # Waveform type: 2 for triangle wave
+    li $a3, 100        # Volume (moderate)
+    syscall
     sw   $t1, PILL_Y
 
 move_down_exit:
@@ -856,6 +870,7 @@ move_down_exit:
 
 # $a0 = X, $a1 = Y, $a2 = rotation
 rotate:
+
     addi $sp, $sp, -20        # Allocate stack space
     sw   $ra, 0($sp)         # Save return address
     
@@ -890,6 +905,12 @@ rotate:
     j rotate_exit
 
 rotate_valid:
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 75        # Frequency (lower than the block breaking sound)
+    li $a1, 50        # Duration in milliseconds (slightly longer than block sound)
+    li $a2, 2          # Waveform type: 2 for triangle wave
+    li $a3, 100        # Volume (moderate)
+    syscall
     sw   $t3, PILL_ROTATION  # Update rotation if valid
     
 rotate_exit:
@@ -1423,6 +1444,12 @@ end_gravity:
 
 
 gravity_col_loop:
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 45      # Frequency (e.g., 1500 Hz for a sharp sound)
+    li $a1, 350       # Duration in milliseconds (short burst)
+    li $a2, 0          # Waveform type: 0 for square wave
+    li $a3, 127        # Volume (max)
+    syscall
     li   $s1, 28                  # Start from the bottom row (row 28)
     
 column_row_loop:
