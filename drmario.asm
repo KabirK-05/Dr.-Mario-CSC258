@@ -2,7 +2,7 @@
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Kabir Kumar, 1010244120
-# Student 2: Name, Student Number (if applicable) NA
+# Student 2: Karl-Alexandre Michaud, 1009849862
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
@@ -271,6 +271,12 @@ INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
 DIFFICULTY_PROMPT:  .asciiz "Select difficulty (1-3):\n1: Easy (3 viruses)\n2: Medium (4 viruses)\n3: Hard (6 viruses)\n"
 
 
+# for different difficulty viruse generation
+DIFFICULTY:         .word 1        # Default difficulty (1-3)
+VIRUS_COUNT:        .word 3        # Will be set based on difficulty
+INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
+
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -278,28 +284,6 @@ DIFFICULTY_PROMPT:  .asciiz "Select difficulty (1-3):\n1: Easy (3 viruses)\n2: M
 	.globl main
 
 main: 
-    # # Display difficulty selection prompt
-    # li $v0, 4
-    # la $a0, DIFFICULTY_PROMPT
-    # syscall
-
-    # # Read difficulty input
-    # li $v0, 5
-    # syscall
-
-    # # Validate input (1-3)
-    # blt $v0, 1, main        # If <1, reprompt
-    # bgt $v0, 3, main        # If >3, reprompt
-
-    # # Store selected difficulty
-    # sw $v0, DIFFICULTY
-
-    # # Set virus count based on difficulty
-    # beq $v0, 1, set_easy
-    # beq $v0, 2, set_medium
-    # # else hard (3)
-    # jal set_hard
-
     jal draw_start_screen
     
     lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
