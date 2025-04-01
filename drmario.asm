@@ -2,7 +2,7 @@
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Kabir Kumar, 1010244120
-# Student 2: Karl-Alexandre Michaud, 1009849862
+# Student 2: Karl-Alexandre Michaud, 1009849862 
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
