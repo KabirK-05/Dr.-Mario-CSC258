@@ -260,6 +260,16 @@ LAST_DROP_TIME: .word 0
 
 # for pausing:
 PAUSED:     .word 0             # 0 = not paused, 1 = paused
+COLOR_WHITE:    .word 0xFFFFFF
+PAUSE_ICON_X:   .word 16          # X position of pause icon
+PAUSE_ICON_Y:   .word 15          # Y position of pause icon
+
+# for different difficulty viruse generation
+DIFFICULTY:         .word 1        # Default difficulty (1-3)
+VIRUS_COUNT:        .word 3        # Will be set based on difficulty
+INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
+DIFFICULTY_PROMPT:  .asciiz "Select difficulty (1-3):\n1: Easy (3 viruses)\n2: Medium (4 viruses)\n3: Hard (6 viruses)\n"
+
 
 # for different difficulty viruse generation
 DIFFICULTY:         .word 1        # Default difficulty (1-3)
@@ -997,12 +1007,80 @@ check_keyboard:
     j no_key
     
 toggle_pause:
-    # Toggle pause state (0->1 or 1->0)
+    addi $sp, $sp, -4        # Save return address
+    sw $ra, 0($sp)
+    
     la $t4, PAUSED
     lw $t5, 0($t4)
     xori $t5, $t5, 1
     sw $t5, 0($t4)
+    
+    beqz $t5, clear_pause_icon
+    jal draw_pause_icon
+    j toggle_pause_done
+    
+toggle_pause_done:
+    lw $ra, 0($sp)           # Restore return address
+    addi $sp, $sp, 4
     j no_key
+    
+# Draws a simple pause icon (two vertical bars)
+draw_pause_icon:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    lw $a0, PAUSE_ICON_X
+    lw $a1, PAUSE_ICON_Y
+    lw $a2, COLOR_WHITE
+    
+    # Draw first vertical bar
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    
+    # Draw second vertical bar (with gap)
+    addi $a0, $a0, 2
+    lw $a1, PAUSE_ICON_Y
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+# Clears the pause icon area
+clear_pause_icon:
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+    
+    lw $a0, PAUSE_ICON_X
+    lw $a1, PAUSE_ICON_Y
+    lw $a2, COLOR_BLACK
+    
+    # Clear first vertical bar
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    
+    # Clear second vertical bar
+    addi $a0, $a0, 2
+    lw $a1, PAUSE_ICON_Y
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    addi $a1, $a1, 1
+    jal draw_unit
+    
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
     
     
 # ------ Movement handling ------
