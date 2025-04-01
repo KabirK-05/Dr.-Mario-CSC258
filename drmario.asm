@@ -435,9 +435,9 @@ virus_loop:
     # Generate Y (17-41)
     li $v0, 42
     li $a0, 0
-    li $a1, 25                       # 0-24 x 17-41
+    li $a1, 15                       # 0-24 x 17-41
     syscall
-    addi $t1, $a0, 17
+    addi $t1, $a0, 26
     sw $t1, 4($s0)                   # Store Y
 
     # Generate color (0-2)
