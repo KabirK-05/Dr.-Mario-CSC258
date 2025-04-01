@@ -287,6 +287,12 @@ exit_auto_check:
 
 
 auto_move_down:
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 65       # Frequency (lower than the block breaking sound)
+    li $a1, 1        # Duration in milliseconds (slightly longer than block sound)
+    li $a2, 2          # Waveform type: 2 for triangle wave
+    li $a3, 100        # Volume (moderate)
+    syscall
     addi $sp, $sp, -20
     sw   $ra, 0($sp)
     
