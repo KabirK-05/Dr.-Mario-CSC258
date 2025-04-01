@@ -129,6 +129,13 @@ LAST_DROP_TIME: .word 0
 # for pausing:
 PAUSED:     .word 0             # 0 = not paused, 1 = paused
 
+# for different difficulty viruse generation
+DIFFICULTY:         .word 1        # Default difficulty (1-3)
+VIRUS_COUNT:        .word 3        # Will be set based on difficulty
+INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
+DIFFICULTY_PROMPT:  .asciiz "Select difficulty (1-3):\n1: Easy (3 viruses)\n2: Medium (4 viruses)\n3: Hard (6 viruses)\n"
+
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -136,14 +143,27 @@ PAUSED:     .word 0             # 0 = not paused, 1 = paused
 	.globl main
 
 main: 
-    jal draw_mario
-    jal draw_bottle
-    jal generate_viruses  # Populate VIRUS_DATA and GRID
-    jal spawn_new_pill
-    jal draw_pill
-    
-    # li $v0, 10              # terminate the program gracefully
-    # syscall
+    # Display difficulty selection prompt
+    li $v0, 4
+    la $a0, DIFFICULTY_PROMPT
+    syscall
+
+    # Read difficulty input
+    li $v0, 5
+    syscall
+
+    # Validate input (1-3)
+    blt $v0, 1, main        # If <1, reprompt
+    bgt $v0, 3, main        # If >3, reprompt
+
+    # Store selected difficulty
+    sw $v0, DIFFICULTY
+
+    # Set virus count based on difficulty
+    beq $v0, 1, set_easy
+    beq $v0, 2, set_medium
+    # else hard (3)
+    jal set_hard
     
 game_loop:
     jal check_keyboard               # Always check keyboard (for pause)
@@ -181,11 +201,41 @@ draw_mario:
     jr $ra
 
 # -------------------- Virus Initialization --------------------
+set_hard:
+    li $t0, 6
+    sw $t0, VIRUS_COUNT
+    li $t0, 500            # Fastest drop speed
+    j set_difficulty
+
+set_medium:
+    li $t0, 4
+    sw $t0, VIRUS_COUNT
+    li $t0, 750            # Medium drop speed
+    j set_difficulty
+
+set_easy:
+    li $t0, 3
+    sw $t0, VIRUS_COUNT
+    li $t0, 1000           # Default drop speed
+
+set_difficulty:
+    sw $t0, DROP_INTERVAL
+    sw $t0, INITIAL_DROP_SPEED
+
+    # Initialize game elements
+    jal draw_mario
+    jal draw_bottle
+    jal generate_viruses  # Populate VIRUS_DATA and GRID
+    jal spawn_new_pill
+    jal draw_pill
+    
+    j game_loop
+
 generate_viruses:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
     la $s0, VIRUS_DATA               # Virus storage
-    li $s1, 3                        # Virus counter
+    lw $s1, VIRUS_COUNT              # Virus counter (load from variable)
     la $s2, GRID                     # Grid base
 
 virus_loop:
@@ -960,19 +1010,19 @@ lock_pill:
     jal  process_matches
     jal  spawn_new_pill
 
-    # Increase locked count and adjust speed
+    # Increase locked count
     lw   $t0, LOCKED_COUNT
     addi $t0, $t0, 1
     sw   $t0, LOCKED_COUNT
 
-    # Calculate new interval: max(500, 1000 - 50*count)
-    li   $t1, 50
-    mul  $t1, $t0, $t1
-    li   $t2, 1000
-    sub  $t2, $t2, $t1
-    li   $t3, 500
-    bge  $t2, $t3, update_interval
-    move $t2, $t3
+    # Calculate new interval based on difficulty
+    lw   $t1, DIFFICULTY
+    beq  $t1, 1, easy_speed
+    beq  $t1, 2, medium_speed
+    
+    # Hard difficulty - fastest acceleration
+    li   $t2, 30            # Speed increase factor
+    j    calc_speed
     
 update_interval:
     sw   $t2, DROP_INTERVAL
@@ -980,6 +1030,33 @@ update_interval:
     # Reset LAST_DROP_TIME to zero for new pill's interval
     la   $t4, LAST_DROP_TIME
     sw   $zero, 0($t4)
+
+    lw   $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr   $ra
+    
+medium_speed:
+    li   $t2, 40            # Medium speed increase
+    j    calc_speed
+    
+easy_speed:
+    li   $t2, 50            # Slowest speed increase
+
+calc_speed:
+    mul  $t1, $t0, $t2      # count * speed_factor
+    lw   $t3, INITIAL_DROP_SPEED
+    sub  $t4, $t3, $t1      # initial - (count * factor)
+    
+    # Ensure minimum speed
+    li   $t5, 200           # Minimum interval
+    bge  $t4, $t5, update_speed
+    move $t4, $t5
+    
+update_speed:
+    sw   $t4, DROP_INTERVAL
+
+    # Reset LAST_DROP_TIME for new pill
+    sw   $zero, LAST_DROP_TIME
 
     lw   $ra, 0($sp)
     addi $sp, $sp, 4
