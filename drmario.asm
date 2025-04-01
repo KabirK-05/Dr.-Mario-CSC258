@@ -2,7 +2,7 @@
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Kabir Kumar, 1010244120
-# Student 2: Karl-Alexandre Michaud, 1009849862 
+# Student 2: Karl-Alexandre Michaud, 1009849862
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
@@ -435,9 +435,9 @@ virus_loop:
     # Generate Y (17-41)
     li $v0, 42
     li $a0, 0
-    li $a1, 15                       # 0-24 x 17-41
+    li $a1, 25                       # 0-24 x 17-41
     syscall
-    addi $t1, $a0, 26
+    addi $t1, $a0, 17
     sw $t1, 4($s0)                   # Store Y
 
     # Generate color (0-2)
@@ -1178,7 +1178,6 @@ move_right_exit:
 
 
 move_down:
-    
     addi $sp, $sp, -20       # Allocate space for $ra, original_Y, new_Y, X, rotation
     sw   $ra, 0($sp)         # Save return address
     
@@ -1285,27 +1284,31 @@ rotate_exit:
     j    no_key              # Return to main loop
 
 lock_pill:
-    addi $sp, $sp, -4
+    addi $sp, $sp, -36
     sw   $ra, 0($sp)
-    jal  save_pill_to_grid
-    jal  clear_screen
-    jal  draw_bottle
-    jal  process_matches
-    jal  spawn_new_pill
-
-    # Increase locked count
-    lw   $t0, LOCKED_COUNT
-    addi $t0, $t0, 1
-    sw   $t0, LOCKED_COUNT
-
-    # Calculate new interval based on difficulty
-    lw   $t1, DIFFICULTY
-    beq  $t1, 1, easy_speed
-    beq  $t1, 2, medium_speed
+    sw   $s0, 4($sp)
+    sw   $s1, 8($sp)
+    sw   $s2, 12($sp)
+    sw   $s3, 16($sp)
+    sw   $s4, 20($sp)
+    sw   $s5, 24($sp)
+    sw   $s6, 28($sp)
+    sw   $s7, 32($sp)
     
-    # Hard difficulty - fastest acceleration
-    li   $t2, 30            # Speed increase factor
-    j    calc_speed
+    jal  save_pill_to_grid       # Save pill to GRID
+    
+    # Get pill data for animation
+    lw   $s0, PILL_X
+    lw   $s1, PILL_Y
+    lw   $s2, PILL_ROTATION
+    lw   $s3, PILL_LEFT_COLOR
+    lw   $s4, PILL_RIGHT_COLOR
+    
+    # Determine positions based on rotation
+    beq  $s2, 0, vertical_pos
+    beq  $s2, 1, horizontal_pos
+    beq  $s2, 2, vertical_flip_pos
+    beq  $s2, 3, horizontal_flip_pos
     
 update_interval:
     sw   $t2, DROP_INTERVAL
@@ -1348,6 +1351,102 @@ update_speed:
 no_key:
     jr $ra                  # Return to game loop
     
+# ------ Blink on collision ------
+vertical_pos:
+    move $s5, $s0        # Cell 1 X
+    move $s6, $s1        # Cell 1 Y
+    move $s7, $s0        # Cell 2 X
+    addi $s2, $s1, 1     # Cell 2 Y
+    j end_pos
+    
+horizontal_pos:
+    move $s5, $s0        # Cell 1 X (left part)
+    move $s6, $s1        # Cell 1 Y
+    addi $s7, $s0, 1     # Cell 2 X (right part)
+    move $s2, $s1        # Cell 2 Y
+    j end_pos
+    
+vertical_flip_pos:
+    move $s5, $s0        # Cell 1 X
+    move $s6, $s1        # Cell 1 Y
+    move $s7, $s0        # Cell 2 X
+    addi $s2, $s1, -1    # Cell 2 Y
+    j end_pos
+    
+horizontal_flip_pos:
+    move $s5, $s0        # Cell 1 X
+    move $s6, $s1        # Cell 1 Y
+    addi $s7, $s0, -1    # Cell 2 X
+    move $s2, $s1        # Cell 2 Y
+    j end_pos
+    
+end_pos:
+    li   $s0, 3          # Blink counter
+    
+blink_pill_loop:
+    beqz $s0, end_blink
+    
+    # Draw black
+    move $a0, $s5
+    move $a1, $s6
+    lw   $a2, COLOR_BLACK
+    jal  draw_unit
+    
+    move $a0, $s7
+    move $a1, $s2
+    lw   $a2, COLOR_BLACK
+    jal  draw_unit
+    
+    # Sleep 100ms
+    li   $v0, 32
+    li   $a0, 100
+    syscall
+    
+    # Restore colors
+    move $a0, $s5
+    move $a1, $s6
+    move $a2, $s3
+    jal  draw_unit
+    
+    move $a0, $s7
+    move $a1, $s2
+    move $a2, $s4
+    jal  draw_unit
+    
+    # Sleep 100ms
+    li   $v0, 32
+    li   $a0, 100
+    syscall
+    
+    addi $s0, $s0, -1
+    j    blink_pill_loop
+    
+end_blink:
+    jal process_matches
+    
+    # redraw everything
+    jal clear_screen
+    jal draw_bottle
+    jal draw_grid
+    
+    # Now spawn new pill
+    jal spawn_new_pill
+    
+    # Restore registers
+    lw   $ra, 0($sp)
+    lw   $s0, 4($sp)
+    lw   $s1, 8($sp)
+    lw   $s2, 12($sp)
+    lw   $s3, 16($sp)
+    lw   $s4, 20($sp)
+    lw   $s5, 24($sp)
+    lw   $s6, 28($sp)
+    lw   $s7, 32($sp)
+    addi $sp, $sp, 36
+    jr   $ra
+    
+    
+
 # -------------------- Collision Detection --------------------
 # $a0 = X, $a1 = Y, $a2 = rotation
 # Returns $v0 = 1 (collision) or 0 (valid)
