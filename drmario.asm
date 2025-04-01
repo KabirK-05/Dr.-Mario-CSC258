@@ -264,14 +264,8 @@ COLOR_WHITE:    .word 0xFFFFFF
 PAUSE_ICON_X:   .word 16          # X position of pause icon
 PAUSE_ICON_Y:   .word 15          # Y position of pause icon
 
-# for different difficulty viruse generation
-DIFFICULTY:         .word 1        # Default difficulty (1-3)
-VIRUS_COUNT:        .word 3        # Will be set based on difficulty
-INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
-DIFFICULTY_PROMPT:  .asciiz "Select difficulty (1-3):\n1: Easy (3 viruses)\n2: Medium (4 viruses)\n3: Hard (6 viruses)\n"
 
-
-# for different difficulty viruse generation
+# for different difficulty virus generation
 DIFFICULTY:         .word 1        # Default difficulty (1-3)
 VIRUS_COUNT:        .word 3        # Will be set based on difficulty
 INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
