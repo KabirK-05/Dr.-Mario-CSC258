@@ -126,6 +126,8 @@ LOCKED_COUNT:   .word 0
 DROP_INTERVAL:  .word 1000  # Initial interval: 1000 ms
 LAST_DROP_TIME: .word 0     
 
+# for pausing:
+PAUSED:     .word 0             # 0 = not paused, 1 = paused
 
 ##############################################################################
 # Code
@@ -144,12 +146,18 @@ main:
     # syscall
     
 game_loop:
-    jal check_keyboard               # Check for 'q' to quit
+    jal check_keyboard               # Always check keyboard (for pause)
+    
+    lw $t0, PAUSED
+    bnez $t0, skip_updates          # Skip game updates if paused
+    
     jal check_auto_move_down
     jal draw_grid                    # Draw viruses from GRID
     jal draw_pill                    # Draw static pill
     jal sleep_33ms  
     
+skip_updates:
+    jal sleep_33ms                   
     j game_loop
 
 # -------------------- Draw Mario function ---------------------
@@ -708,12 +716,31 @@ check_keyboard:
     lw $t0, ADDR_KBRD
     lw $t1, 0($t0)
     bne $t1, 1, no_key
-    lw $t2, 4($t0)
+    
+    lw $t2, 4($t0)             # Get key pressed
+    lw $t3, PAUSED             # Check pause state
+    
+    # Handle pause/unpause first
+    beq $t2, 0x70, toggle_pause # 'p' key
+    beq $t2, 0x50, toggle_pause # 'P' key
+    
+    # If game is paused, ignore all other keys
+    bnez $t3, no_key
+    
+    # Normal key handling when not paused
     beq $t2, 0x71, quit_game     # 'q' to quit
     beq $t2, 0x61, move_left     # 'a' left
     beq $t2, 0x64, move_right    # 'd' right
     beq $t2, 0x73, move_down     # 's' down
     beq $t2, 0x77, rotate        # 'w' rotate
+    j no_key
+    
+toggle_pause:
+    # Toggle pause state (0->1 or 1->0)
+    la $t4, PAUSED
+    lw $t5, 0($t4)
+    xori $t5, $t5, 1
+    sw $t5, 0($t4)
     j no_key
     
     
