@@ -235,6 +235,7 @@ start_screen:
     .word 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000
     .word 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000
 
+
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -242,9 +243,11 @@ VIRUS_DATA:     .word 0:9            # 3 viruses x (X, Y, color)
 GRID:           .word 0:493          # 17 columns x 29 rows
 
 MATCH_BUFFER:   .word 0:493        # Buffer to mark blocks for removal
+
 TEMP_ARRAY:     .word 0:29         # Temporary storage for gravity processing
 
 CONNECTED_BUFFER: .word 0:493  # Tracks blocks connected to matches
+RESET_CONNECTED_BUFFER:   .word 0:493
 
 # Pill data
 PILL_LEFT_COLOR:  .word 0
@@ -277,8 +280,12 @@ INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
 ##############################################################################
 	.text
 	.globl main
+  
 
-main:     
+
+main:
+    jal reset_game_state
+
     jal draw_start_screen
     
     lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
@@ -352,18 +359,17 @@ game_over:
       jal draw_game_over_screen
 
       #################### Check if Q is pressed ######################
-      # lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
-      # lw $t0 , 0($t8)   # Load first word from keyboard
-      # addi $t9, $zero, 1
-      # bne $t0, $t9, game_over_cry_loop
-      
-      
-      # lw $t1, 4($t8)   # Load second word from keyboard
-      # beq $t1, 0x71, end_cry_loop
-      # beq $t1, 0x70, main   # If P is pressed, play again
+      lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
+      lw $t0 , 0($t8)   # Load first word from keyboard
+      addi $t9, $zero, 1
+      bne $t0, $t9, pass
+      lw $t1, 4($t8)   # Load second word from keyboard
+      beq $t1, 0x71, end_cry_loop
+      beq $t1, 0x70, main   # If P is pressed, play again
       #################################################################
       # Since Q not pressed, proceed with loop
-      
+
+      pass:
       lw $t0, ADDR_DSPL
       lw $t1, COLOR_TEARS
       
@@ -402,6 +408,88 @@ game_over:
       syscall
 
 
+reset_game_state:
+    # Save $ra since we'll call other functions
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+    # Reset VIRUS_DATA (9 words to 0)
+    la $a0, VIRUS_DATA
+    li $a1, 0
+    li $a2, 9
+    jal memset_words
+
+    # Reset GRID (493 words to 0)
+    la $a0, GRID
+    li $a1, 0
+    li $a2, 493
+    jal memset_words
+
+    # Reset MATCH_BUFFER (493 words to 0)
+    la $a0, MATCH_BUFFER
+    li $a1, 0
+    li $a2, 493
+    jal memset_words
+
+    # Reset TEMP_ARRAY (29 words to 0)
+    la $a0, TEMP_ARRAY
+    li $a1, 0
+    li $a2, 29
+    jal memset_words
+
+    # Reset CONNECTED_BUFFER (493 words to 0)
+    la $a0, CONNECTED_BUFFER
+    li $a1, 0
+    li $a2, 493
+    jal memset_words
+
+    # Reset pill data
+    sw $zero, PILL_LEFT_COLOR
+    sw $zero, PILL_RIGHT_COLOR
+    li $t0, 32
+    sw $t0, PILL_X
+    li $t0, 14
+    sw $t0, PILL_Y
+    sw $zero, PILL_ROTATION
+
+    # Reset auto gravity variables
+    sw $zero, LOCKED_COUNT
+    li $t0, 1000
+    sw $t0, DROP_INTERVAL
+    sw $zero, LAST_DROP_TIME
+
+    # Reset pause variables
+    sw $zero, PAUSED
+    li $t0, 0xFFFFFF
+    sw $t0, COLOR_WHITE
+    li $t0, 16
+    sw $t0, PAUSE_ICON_X
+    li $t0, 15
+    sw $t0, PAUSE_ICON_Y
+
+    # Reset difficulty variables
+    li $t0, 1
+    sw $t0, DIFFICULTY
+    li $t0, 3
+    sw $t0, VIRUS_COUNT
+    li $t0, 1000
+    sw $t0, INITIAL_DROP_SPEED
+
+    # Restore $ra and return
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+
+# Helper function to set a block of memory to a value
+# $a0 = address, $a1 = value, $a2 = word count
+memset_words:
+    beqz $a2, memset_done      # If count == 0, we're done
+    sw $a1, 0($a0)             # Store word
+    addi $a0, $a0, 4           # Move to next word
+    addi $a2, $a2, -1          # Decrement counter
+    j memset_words             # Loop
+memset_done:
+    jr $ra
 
 # -------------------- Draw Mario function ---------------------
 draw_mario:
@@ -505,12 +593,11 @@ virus_loop:
     addi $t0, $a0, 25
     sw $t0, 0($s0)                   # Store X
 
-    # Generate Y (17-41)
     li $v0, 42
     li $a0, 0
-    li $a1, 25                       # 0-24 x 17-41
+    li $a1, 17                       # 0-24 x 17-41
     syscall
-    addi $t1, $a0, 17
+    addi $t1, $a0, 24
     sw $t1, 4($s0)                   # Store Y
 
     # Generate color (0-2)
