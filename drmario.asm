@@ -355,6 +355,14 @@ draw_pool_tears:
     jr $ra
 
 game_over:
+    ########### Sound effect for game over ##########################
+    li $v0, 33         # Syscall for generating a sound
+    li $a0, 30      # Frequency (e.g., 1500 Hz for a sharp sound)
+    li $a1, 500       # Duration in milliseconds (short burst)
+    li $a2, 2          # Waveform type: 0 for square wave
+    li $a3, 300        # Volume (max)
+    syscall
+    ###############################################################
     game_over_cry_loop:
       jal draw_game_over_screen
 
