@@ -31,6 +31,7 @@ COLOR_RED:      .word 0xFF0000
 COLOR_BLUE:     .word 0x0000FF
 COLOR_YELLOW:   .word 0xFFFF00
 COLOR_BLACK:    .word 0x000000
+COLOR_TEARS:    .word 0x00b7ef
 
 # Grid dimensions (24 <= X <= 40, 14 <= Y <= 42)
 GRID_COLS:      .word 17             # 40 - 24 + 1
@@ -277,7 +278,7 @@ INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
 	.text
 	.globl main
 
-main: 
+main:     
     jal draw_start_screen
     
     lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
@@ -323,10 +324,82 @@ skip_updates:
     jal sleep_33ms                   
     j game_loop
 
-game_over:
-    jal draw_game_over_screen
-    li $v0, 10              # terminate the program gracefully
+sleep_tears:
+    li $v0, 32
+    li $a0, 300               
     syscall
+    jr $ra
+
+draw_pool_tears:
+    lw $t0, ADDR_DSPL
+    lw $t1, COLOR_TEARS
+    
+    addi $t0, $t0, 8396
+    sw $t1, 0($t0)
+    sw $t1, 4($t0)
+    sw $t1, -4($t0)
+    sw $t1, 256($t0)
+    sw $t1, 252($t0)
+    sw $t1, 248($t0)
+    sw $t1, 260($t0)
+    sw $t1, 264($t0)
+    sw $t1, 512($t0)
+    sw $t1, 516($t0)
+    jr $ra
+
+game_over:
+    game_over_cry_loop:
+      jal draw_game_over_screen
+
+      #################### Check if Q is pressed ######################
+      # lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
+      # lw $t0 , 0($t8)   # Load first word from keyboard
+      # addi $t9, $zero, 1
+      # bne $t0, $t9, game_over_cry_loop
+      
+      
+      # lw $t1, 4($t8)   # Load second word from keyboard
+      # beq $t1, 0x71, end_cry_loop
+      # beq $t1, 0x70, main   # If P is pressed, play again
+      #################################################################
+      # Since Q not pressed, proceed with loop
+      
+      lw $t0, ADDR_DSPL
+      lw $t1, COLOR_TEARS
+      
+      jal sleep_tears
+      addi $t0, $t0, 5836
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      addi $t0, $t0, 512
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      addi $t0, $t0, 512
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      addi $t0, $t0, 512
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      addi $t0, $t0, 512
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      addi $t0, $t0, 512
+      sw $t1, 0($t0)
+
+      jal sleep_tears
+      jal draw_pool_tears
+
+      jal sleep_tears
+      j game_over_cry_loop
+
+    end_cry_loop:
+      li $v0, 10              # terminate the program gracefully
+      syscall
 
 
 
