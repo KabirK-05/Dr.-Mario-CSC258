@@ -282,8 +282,10 @@ INITIAL_DROP_SPEED: .word 1000     # Base drop interval (ms)
 	.globl main
   
 
+
 main:
     jal reset_game_state
+
     jal draw_start_screen
     
     lw $t8 , ADDR_KBRD  # $t0 = base address for keyboard 
@@ -328,7 +330,6 @@ game_loop:
 skip_updates:
     jal sleep_33ms                   
     j game_loop
-
 
 sleep_tears:
     li $v0, 32
@@ -2234,9 +2235,28 @@ process_matches:
     
 process_loop:
     jal  check_matches
-    beqz $v0, no_more_matches
+    beqz $v0, no_more_matches    # Exit if no more matches
+    
+    # Blink while we still have match data
+    jal  blink_matches
+    
+    # Remove blocks using original match data
     jal  remove_marked_blocks
+    
+    # CLEAR MATCH BUFFER HERE (CRUCIAL FIX)
+    la   $t1, MATCH_BUFFER
+    li   $t2, 493
+clear_buffer_loop:
+    sw   $zero, 0($t1)
+    addi $t1, $t1, 4
+    addi $t2, $t2, -1
+    bnez $t2, clear_buffer_loop
+    
+    # Apply gravity and update display
     jal  apply_gravity
+    jal  draw_grid
+    
+    # Check for new matches from gravity
     j    process_loop
     
 no_more_matches:
@@ -2244,6 +2264,111 @@ no_more_matches:
     addi $sp, $sp, 4
     jr   $ra
 
+# ---- Blink 4 in a row ----
+blink_matches:
+    addi $sp, $sp, -16
+    sw   $ra, 0($sp)
+    sw   $s0, 4($sp)
+    sw   $s1, 8($sp)
+    sw   $s2, 12($sp)
+    
+    la   $s0, MATCH_BUFFER    # Match buffer
+    la   $s1, GRID            # Grid data
+    li   $s2, 0               # Index counter
+    li   $t9, 6               # Blink counter (3 times)
+
+blink_loop:
+    beqz $t9, end_blink_matches
+    
+    # First pass: Draw all matched blocks black
+    move $s2, $zero           # Reset index counter
+    la   $s0, MATCH_BUFFER    # Reset buffer pointer
+    
+draw_black_loop:
+    beq  $s2, 493, sleep_black
+    lw   $t1, 0($s0)          # Check if marked
+    beqz $t1, next_black
+    
+    # Calculate grid position
+    li   $t2, 17
+    div  $s2, $t2             # row = index/17, col = index%17
+    mflo $t3                  # row
+    mfhi $t4                  # column
+    
+    # Convert to display coordinates
+    addi $a0, $t4, 24         # X = 24 + column
+    addi $a1, $t3, 14         # Y = 14 + row
+    lw   $a2, COLOR_BLACK
+    jal  draw_unit
+    
+next_black:
+    addi $s0, $s0, 4
+    addi $s2, $s2, 1
+    j    draw_black_loop
+    
+sleep_black:
+    # Short delay
+    li   $v0, 32
+    li   $a0, 100
+    syscall
+    
+    # Second pass: Restore original colors
+    move $s2, $zero           # Reset index counter
+    la   $s0, MATCH_BUFFER    # Reset buffer pointer
+    
+draw_color_loop:
+    beq  $s2, 493, sleep_color
+    lw   $t1, 0($s0)          # Check if marked
+    beqz $t1, next_color
+    
+    # Calculate grid position
+    li   $t2, 17
+    div  $s2, $t2             # row = index/17, col = index%17
+    mflo $t3                  # row
+    mfhi $t4                  # column
+    
+    # Get original color from GRID
+    mul  $t5, $t3, 17
+    add  $t5, $t5, $t4
+    sll  $t5, $t5, 2
+    add  $t6, $s1, $t5
+    lw   $a2, 0($t6)          # Original color
+
+    beqz $a2, next_color
+    
+    # Convert to display coordinates
+    addi $a0, $t4, 24         # X = 24 + column
+    addi $a1, $t3, 14         # Y = 14 + row
+    jal  draw_unit
+    
+next_color:
+    addi $s0, $s0, 4
+    addi $s2, $s2, 1
+    j    draw_color_loop
+    
+sleep_color:
+    # Short delay
+    li   $v0, 32
+    li   $a0, 100
+    syscall
+    
+    addi $t9, $t9, -1         # Decrement blink counter
+    j    blink_loop
+    
+end_blink_matches:
+    li   $v0, 33              # Syscall for generating a sound
+    li   $a0, 1500            # Higher frequency for match
+    li   $a1, 200             # Duration
+    li   $a2, 0               # Square wave
+    li   $a3, 127             # Volume
+    syscall
+    
+    lw   $ra, 0($sp)
+    lw   $s0, 4($sp)
+    lw   $s1, 8($sp)
+    lw   $s2, 12($sp)
+    addi $sp, $sp, 16
+    jr   $ra
 
 # ---- Exit the game ----
 
